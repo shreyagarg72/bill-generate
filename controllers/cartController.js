@@ -1,14 +1,15 @@
 const { request, response } = require("express")
 const cartModel = require("../model/cartModel")
-const { v4 } = require("uuid")
+const { v4 } = require("uuid");
 
 
 
 const createController = async (request,response) => {
   try {
     const uuid = v4();
+    console.log("id generated");
     const { productId, productName, storeId,price,quantity, productDescription} = request.body;
-
+console.log("fetched body");
     const product = await cartModel.create({
       productId:uuid,
        productName: productName,
@@ -17,16 +18,40 @@ const createController = async (request,response) => {
        quantity:quantity,
        productDescription: productDescription
    });
+console.log("product entered");
    if (product && product._id) {
        response.status(201).json({ message: "Product entered successfully" });
      } else {
        response.status(404).json({ message: "Product not entered" });
      }
 } catch (error) {
-   response.status(500).json({ message: "Internal Server Error" });
+  console.error(error); // Log the actual error
+  response.status(500).json({ message: "Internal Server Error" });
 }
 }
 
+// const createController = async (request,response) => {
+//   try {
+//     const uuid = v4();
+//     const { productId, productName, storeId,price,quantity, productDescription} = request.body;
+
+//     const product = await cartModel.create({
+//       productId:uuid,
+//        productName: productName,
+//        storeId: storeId,
+//        price:price,
+//        quantity:quantity,
+//        productDescription: productDescription
+//    });
+//    if (product && product._id) {
+//        response.status(201).json({ message: "Product entered successfully" });
+//      } else {
+//        response.status(404).json({ message: "Product not entered" });
+//      }
+// } catch (error) {
+//    response.status(500).json({ message: "Internal Server Error" });
+// }
+// }
 
 // const getController= async (request, response) => {
 //   try {
@@ -44,18 +69,18 @@ const createController = async (request,response) => {
 //   }
 // }
 
+
 const getController = async (request, response) => {
   try {
     const storeId = request.params.storeId;
     console.log(storeId);
-    
-    // Find all products with the given storeId
-    const products = await cartModel.find({ storeId: storeId });
+
+    const products = await cartModel.aggregate([{ $match: { storeId: storeId } }]);
 
     if (products.length > 0) {
-      // Calculate the total price by summing up the prices of all products
-      const totalPrice = products.reduce((acc, product) => acc +(product.price * product.quantity), 0);
-      response.status(200).json({ message: "Products found!", totalPrice: totalPrice });
+      const totalPrice = products.reduce((acc, product) => acc + (product.price * product.quantity), 0);
+      const productDetails = products.map(({ productName, price, quantity }) => ({ productName, price, quantity }));
+      response.status(200).json({ message: "Products found!", totalPrice, products: productDetails });
     } else {
       response.status(404).json({ message: "Products not found for the given storeId" });
     }
@@ -64,7 +89,6 @@ const getController = async (request, response) => {
     response.status(500).json({ message: "Internal Server Error" });
   }
 }
-
 
 
 const getAllProductsController = async (request, response) => {
@@ -90,23 +114,24 @@ const getAllProductsController = async (request, response) => {
 };
 
 
-
 const deleteController = async (request, response) => {
-    try {
-      const productName = request.params.productName;
-      console.log(productName);
-      const product = await cartModel.deleteOne({ productName: productName })
-      console.log(product);
-  
-      if (product) {
-        response.status(201).json({ message: "product deleted Successfully" })
-      } else {
-        response.status(404).json({ message: "product Not deleted " })
-      }
-    } catch (error) {
-      response.status(500).json({ message: "Internal Server error" })
+  try {
+    const productName = request.params.productName;
+    
+    // Assuming cartModel is a model for your products
+    const product = await cartModel.findOneAndDelete({ name: productName });
+
+    if (product) {
+      response.status(201).json({ message: "Product deleted successfully" });
+    } else {
+      response.status(404).json({ message: "Product not found" });
     }
- }
+  } catch (error) {
+    console.error(error);
+    response.status(500).json({ message: "Internal Server error" });
+  }
+};
+
 
 // const updateController = async (request, response) => {
 //     try {
@@ -131,8 +156,7 @@ const updateIncController = async (request, response) => {
     // Update the product's quantity using findOneAndUpdate and $inc operator
     const product = await cartModel.findOneAndUpdate(
       { productName: productName },
-      { $inc: { quantity: 1 } },
-      { new: true }
+      { $inc: { quantity: 1 } }
     );
 
     if (product) {
@@ -154,8 +178,7 @@ const updateDecController = async (request, response) => {
     // Update the product's quantity by decrementing it by 1
     const product = await cartModel.findOneAndUpdate(
       { productName: productName },
-      { $inc: { quantity: -1 } },
-      { new: true }
+      { $inc: { quantity: -1 } }
     );
 
     if (product) {
